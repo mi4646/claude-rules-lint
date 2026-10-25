@@ -7,11 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-25
+
 ### Added
 
-- CI (`.github/workflows/ci.yml`): the test suite on Python 3.9 and 3.13
-  (Linux), plus 3.13 on Windows for the hook's native-separator path handling;
-  a self-check that the checker still passes a clean rule set *and* still fails
+- Test suite (`tests/test_rules_lint.py`): 33 standard-library `unittest` cases
+  covering glob translation, `paths:` parsing, all four FAIL kinds, the
+  warning/INFO split, CLI flags, every hook branch, and the plugin manifests.
+  No install step.
+- CI (`.github/workflows/ci.yml`): the suite on Python 3.9 and 3.13 (Linux),
+  plus 3.13 on Windows for the hook's native-separator path handling; a
+  self-check that the checker still passes a clean rule set *and* still fails
   a broken one; and a manifest gate tying the version in `plugin.json` to
   `marketplace.json`, the hook matcher, and a `## [version]` section in this file.
 
@@ -21,7 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `.claude/rules/` directory.** The reference check sat after an early return,
   so the exact case it exists to catch — the directory was deleted or renamed —
   was the case it silently skipped. Found by writing the test suite; three tests
-  fail against the pre-fix code.
+  fail against the pre-fix code. Anyone on 1.0.0 is missing this check in
+  exactly the situation it was written for.
+- CI's Python 3.9 job failed before running a single test: `ubuntu-latest`
+  moved to 26.04, which publishes no 3.9 build. 3.9 is the floor the README
+  promises, so it is pinned to `ubuntu-22.04` rather than quietly raised.
 
 ## [1.0.0] - 2026-10-25
 
@@ -67,5 +77,6 @@ First release.
   rule set before release. A gate that is green on its first run has proven
   nothing.
 
-[Unreleased]: https://github.com/mi4646/claude-rules-lint/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/mi4646/claude-rules-lint/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/mi4646/claude-rules-lint/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/mi4646/claude-rules-lint/releases/tag/v1.0.0
