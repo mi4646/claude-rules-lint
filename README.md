@@ -2,6 +2,8 @@
 
 Structural lint for layered `CLAUDE.md` rule sets.
 
+**English** | [简体中文](README.zh-CN.md)
+
 Once you split instructions across `CLAUDE.md` and `.claude/rules/*.md`, three failures become possible and **all of them are silent** — nothing errors, Claude simply stops reading a rule you thought it had:
 
 - a rule file that no `CLAUDE.md` indexes, so the agent never learns it exists

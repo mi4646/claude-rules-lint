@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Chinese README (`README.zh-CN.md`), with a language switcher at the top of both
+  READMEs. Structure mirrors the English file section for section.
+
 ## [1.0.1] - 2026-10-25
 
 ### Added
