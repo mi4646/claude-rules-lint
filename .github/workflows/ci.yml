@@ -17,13 +17,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.9 is the floor the README promises; 3.13 checks it still runs
-        # on a current interpreter. Both are exercised, not assumed.
-        python: ['3.9', '3.13']
-        os: [ubuntu-latest]
+        # 3.9 is the floor the README promises, so it gets a runner that still
+        # publishes a 3.9 build — ubuntu-latest moved to 26.04, which has none.
+        # 3.13 checks the code still runs on a current interpreter, and Windows
+        # covers the hook's native-separator path handling. All exercised, none
+        # assumed.
         include:
-          # The hook resolves absolute paths with native separators on Windows,
-          # so path handling gets a second platform rather than a claim.
+          - python: '3.9'
+            os: ubuntu-22.04
+          - python: '3.13'
+            os: ubuntu-latest
           - python: '3.13'
             os: windows-latest
 
