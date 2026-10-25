@@ -69,6 +69,18 @@ Prose quality. Vague rules, contradictory rules, duplicated guidance, stale rule
 - **Fails first.** Every FAIL branch is exercised against a deliberately broken rule set before release; a gate that is green on its first run has proven nothing.
 - **Silent by default.** No output means no problem.
 
+## Development
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+33 stdlib tests, no install step. They cover glob translation, `paths:` parsing, all four FAIL kinds, the warning/INFO split, CLI flags, every hook branch, and the plugin manifests.
+
+The suite earned its place immediately: it caught a dangling `rules/<x>.md` reference being skipped whenever the project had no `.claude/rules/` directory — the reference check sat after an early return, so the case it exists for was the case it missed. Three tests fail against the pre-fix code.
+
+CI runs the suite on Python 3.9 and 3.13 (Linux) and 3.13 on Windows, plus a self-check that the checker still rejects a known-bad rule set, and a gate keeping `plugin.json`, `marketplace.json`, the hook matcher and `CHANGELOG.md` in sync.
+
 ## License
 
 MIT — see [CHANGELOG.md](CHANGELOG.md) for release history.
