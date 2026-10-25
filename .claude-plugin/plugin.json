@@ -1,0 +1,18 @@
+{
+  "name": "claude-rules-lint",
+  "description": "Structural lint for layered CLAUDE.md rule sets: catches rule files nothing indexes, references to rules that no longer exist, and a main file that outgrew its adherence budget.",
+  "version": "1.0.0",
+  "author": {
+    "name": "mi4646"
+  },
+  "homepage": "https://github.com/mi4646/claude-rules-lint",
+  "repository": "https://github.com/mi4646/claude-rules-lint",
+  "license": "MIT",
+  "keywords": [
+    "claude-md",
+    "rules",
+    "lint",
+    "context-engineering",
+    "progressive-disclosure"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "claude-rules-lint",
+  "owner": {
+    "name": "mi4646",
+    "url": "https://github.com/mi4646"
+  },
+  "description": "Structural lint for layered CLAUDE.md rule sets.",
+  "plugins": [
+    {
+      "name": "claude-rules-lint",
+      "source": "./",
+      "description": "Catches rule files nothing indexes, references to rules that no longer exist, empty paths: frontmatter, and a main file past its adherence budget.",
+      "license": "MIT",
+      "keywords": [
+        "claude-md",
+        "rules",
+        "lint",
+        "context-engineering"
+      ]
+    }
+  ]
+}
