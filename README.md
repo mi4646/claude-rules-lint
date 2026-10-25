@@ -71,4 +71,4 @@ Prose quality. Vague rules, contradictory rules, duplicated guidance, stale rule
 
 ## License
 
-MIT
+MIT — see [CHANGELOG.md](CHANGELOG.md) for release history.
