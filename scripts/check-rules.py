@@ -106,6 +106,16 @@ def check(root: pathlib.Path) -> tuple[list[str], list[str], list[str]]:
     if n_lines > LINE_BUDGET:
         warns.append(f'{main}: {n_lines} lines exceeds the {LINE_BUDGET}-line budget')
 
+    # Only bare `rules/<x>.md` references point at this project's rule set;
+    # `~/.claude/rules/<x>.md` names the global layer and is not ours to check.
+    # Checked before the rules/ early-return: a dangling reference is exactly the
+    # case where the directory may be gone, so returning early would hide it.
+    bare_refs = set(re.findall(r'(?<![/\w.-])rules/([A-Za-z0-9_.-]+\.md)', main_text))
+    global_refs = set(re.findall(r'~/\.claude/rules/([A-Za-z0-9_.-]+\.md)', main_text))
+    for ref in bare_refs - global_refs:
+        if not (rules_dir / ref).is_file():
+            fails.append(f'{main}: references rules/{ref} which does not exist')
+
     if not rules_dir.is_dir():
         return fails, warns, infos
 
@@ -133,14 +143,6 @@ def check(root: pathlib.Path) -> tuple[list[str], list[str], list[str]]:
             spread = f'{len(tops)} top-level dir(s): {", ".join(tops[:6])}'
             infos.append(f'{rf}: paths match {len(matched)}/{len(files)} files '
                          f'({len(matched) * 100 // len(files)}%) across {spread}')
-
-    # Only bare `rules/<x>.md` references point at this project's rule set;
-    # `~/.claude/rules/<x>.md` names the global layer and is not ours to check.
-    bare_refs = set(re.findall(r'(?<![/\w.-])rules/([A-Za-z0-9_.-]+\.md)', main_text))
-    global_refs = set(re.findall(r'~/\.claude/rules/([A-Za-z0-9_.-]+\.md)', main_text))
-    for ref in bare_refs - global_refs:
-        if not (rules_dir / ref).is_file():
-            fails.append(f'{main}: references rules/{ref} which does not exist')
 
     return fails, warns, infos
 

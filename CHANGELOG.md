@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- CI (`.github/workflows/ci.yml`): the test suite on Python 3.9 and 3.13
+  (Linux), plus 3.13 on Windows for the hook's native-separator path handling;
+  a self-check that the checker still passes a clean rule set *and* still fails
+  a broken one; and a manifest gate tying the version in `plugin.json` to
+  `marketplace.json`, the hook matcher, and a `## [version]` section in this file.
+
+### Fixed
+
+- **A dangling `rules/<x>.md` reference went unreported when the project had no
+  `.claude/rules/` directory.** The reference check sat after an early return,
+  so the exact case it exists to catch — the directory was deleted or renamed —
+  was the case it silently skipped. Found by writing the test suite; three tests
+  fail against the pre-fix code.
+
 ## [1.0.0] - 2026-10-25
 
 First release.

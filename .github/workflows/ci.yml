@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (py${{ matrix.python }} on ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.9 is the floor the README promises; 3.13 checks it still runs
+        # on a current interpreter. Both are exercised, not assumed.
+        python: ['3.9', '3.13']
+        os: [ubuntu-latest]
+        include:
+          # The hook resolves absolute paths with native separators on Windows,
+          # so path handling gets a second platform rather than a claim.
+          - python: '3.13'
+            os: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Tests
+        run: python -m unittest discover -s tests -v
+
+  self-check:
+    name: lint this repo's own rule set
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      # The tool ships without a CLAUDE.md of its own — it is a tool, not a rule
+      # set. What must hold is that it stays clean against a known-good tree and
+      # still fails against a known-bad one. A checker that only ever passes is
+      # a checker nobody has verified.
+      - name: Passes on a clean rule set
+        shell: bash
+        run: |
+          root=$(mktemp -d)
+          mkdir -p "$root/.claude/rules"
+          printf '# T\n\n| rule |\n|---|\n| a | `rules/a.md` |\n' > "$root/CLAUDE.md"
+          printf -- '---\npaths:\n  - "src/**"\n---\n# a\n' > "$root/.claude/rules/a.md"
+          mkdir -p "$root/src" && echo x > "$root/src/m.py"
+          python scripts/check-rules.py "$root"
+          echo "exit=$?" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fails on a broken rule set
+        shell: bash
+        run: |
+          root=$(mktemp -d)
+          mkdir -p "$root/.claude/rules"
+          printf '# T\n见 `rules/ghost.md`\n' > "$root/CLAUDE.md"
+          printf 'orphan\n' > "$root/.claude/rules/orphan.md"
+          if python scripts/check-rules.py "$root"; then
+            echo "::error::check-rules.py passed a rule set with two known defects"
+            exit 1
+          fi
+          echo "correctly rejected" >> "$GITHUB_STEP_SUMMARY"
+
+  check-manifests:
+    name: plugin manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version appears in both manifests and the changelog
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, pathlib, re, sys
+          plugin = json.loads(pathlib.Path('.claude-plugin/plugin.json').read_text())
+          market = json.loads(pathlib.Path('.claude-plugin/marketplace.json').read_text())
+          hooks  = json.loads(pathlib.Path('hooks/hooks.json').read_text())
+          changelog = pathlib.Path('CHANGELOG.md').read_text()
+
+          version = plugin['version']
+          errors = []
+
+          if plugin['name'] not in [p['name'] for p in market['plugins']]:
+              errors.append(f"plugin name {plugin['name']!r} has no marketplace entry")
+
+          if not re.search(rf'^## \[{re.escape(version)}\]', changelog, re.M):
+              errors.append(f"CHANGELOG.md has no '## [{version}]' section")
+
+          matcher = '|'.join(e['matcher'] for e in hooks['hooks']['PostToolUse'])
+          for tool in ('Write', 'Edit'):
+              if tool not in matcher:
+                  errors.append(f'hook matcher does not cover {tool}')
+
+          for e in errors:
+              print(f'::error::{e}')
+          sys.exit(1 if errors else 0)
+          PY
