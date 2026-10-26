@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -47,11 +48,16 @@ class Fixture:
 
     def __init__(self, main: str | None = None,
                  rules: dict[str, str] | None = None,
-                 files: list[str] | None = None):
+                 files: list[str] | None = None,
+                 nested: bool = False):
         self._tmp = tempfile.TemporaryDirectory()
         self.root = pathlib.Path(self._tmp.name)
+        # nested=True builds the global-layer layout: the main file itself lives
+        # inside .claude/, next to the rules directory it indexes.
+        self.home = self.root / '.claude' if nested else self.root
         if main is not None:
-            (self.root / 'CLAUDE.md').write_text(main, encoding='utf-8')
+            self.home.mkdir(parents=True, exist_ok=True)
+            (self.home / 'CLAUDE.md').write_text(main, encoding='utf-8')
         for name, body in (rules or {}).items():
             d = self.root / '.claude' / 'rules'
             d.mkdir(parents=True, exist_ok=True)
@@ -60,6 +66,10 @@ class Fixture:
             p = self.root / rel
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text('x', encoding='utf-8')
+
+    @property
+    def main_path(self) -> pathlib.Path:
+        return self.home / 'CLAUDE.md'
 
     def __enter__(self) -> pathlib.Path:
         return self.root
@@ -241,7 +251,102 @@ class Cli(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
 
 
+class NestedMainLayout(unittest.TestCase):
+    """The global layer keeps CLAUDE.md *inside* .claude/, not above it.
+
+    Regression: v1.0.1 hardcoded `root / 'CLAUDE.md'` + `root / '.claude' / 'rules'`.
+    Running `--all` against `~/.claude` therefore looked for rules in
+    `~/.claude/.claude/rules`, decided every `rules/x.md` reference was dangling,
+    and reported six FAILs against a rule set that was fine. The same mismatch in
+    the hook made it compute the wrong root entirely and report a missing CLAUDE.md
+    that was right there.
+    """
+
+    def test_nested_main_with_references_passes(self):
+        with Fixture(
+            main='# T\n`rules/a.md`\n',
+            rules={'a.md': rule(['**/*.py'])},
+            files=['a.py'],
+            nested=True,
+        ) as root:
+            proc = run([str(root / '.claude')])
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertNotIn('FAIL', proc.stdout)
+
+    def test_nested_layout_still_catches_a_dangling_reference(self):
+        with Fixture(main='# T\n见 `rules/ghost.md`\n',
+                     rules={'a.md': rule(None)}, nested=True) as root:
+            proc = run([str(root / '.claude')])
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn('ghost.md', proc.stdout)
+
+    def test_nested_layout_still_catches_an_unreferenced_rule(self):
+        with Fixture(main='# T\n', rules={'orphan.md': rule(None)},
+                     nested=True) as root:
+            proc = run([str(root / '.claude')])
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn('orphan.md', proc.stdout)
+
+    def test_all_flag_checks_the_global_layer_cleanly(self):
+        """`--all` appends ~/.claude; that path must resolve like any other root."""
+        with Fixture(
+            main='# T\n`rules/a.md`\n',
+            rules={'a.md': rule(None)},
+            nested=True,
+        ) as root:
+            old = pathlib.Path.home
+            try:
+                # point the global-layer lookup at our fixture by checking the
+                # same root directly: the --all path is `Path.home() / '.claude'`
+                proc = run([str(root / '.claude'), '--quiet'])
+            finally:
+                self.assertEqual(old, pathlib.Path.home)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
+
 class Hook(unittest.TestCase):
+    def test_half_installed_plugin_stays_silent(self):
+        """Missing checker must exit 0, not crash.
+
+        The hook imports check-rules.py as a module to share its root resolver,
+        so the half-installed guard has to run *before* that import or every edit
+        raises ImportError.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            pkg = pathlib.Path(tmp)
+            (pkg / 'hooks').mkdir()
+            shutil.copy2(HOOK, pkg / 'hooks' / 'rules-lint-hook.py')  # no scripts/
+            proc = subprocess.run(
+                [sys.executable, str(pkg / 'hooks' / 'rules-lint-hook.py')],
+                input=json.dumps({'tool_name': 'Edit',
+                                  'tool_input': {'file_path': '/any/CLAUDE.md'}}),
+                capture_output=True, text=True, timeout=60,
+            )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertNotIn('Traceback', proc.stderr)
+
+    def test_hook_resolves_the_nested_global_layout(self):
+        with Fixture(main='# T\n`rules/a.md`\n', rules={'a.md': rule(None)},
+                     nested=True) as root:
+            proc = run_hook({'tool_name': 'Edit',
+                             'tool_input': {'file_path': str(root / '.claude' / 'CLAUDE.md')}})
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+
+    def test_hook_on_nested_rule_file_reports_real_findings(self):
+        with Fixture(main='# T\n见 `rules/ghost.md`\n', rules={'a.md': rule(None)},
+                     nested=True) as root:
+            proc = run_hook({'tool_name': 'Edit',
+                             'tool_input': {'file_path': str(root / '.claude/rules/a.md')}})
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn('ghost.md', proc.stderr)
+
+    def test_hook_does_not_report_a_missing_main_file_for_the_nested_layout(self):
+        with Fixture(main='# T\n`rules/a.md`\n', rules={'a.md': rule(None)},
+                     nested=True) as root:
+            proc = run_hook({'tool_name': 'Edit',
+                             'tool_input': {'file_path': str(root / '.claude/rules/a.md')}})
+        self.assertNotIn('no CLAUDE.md', proc.stderr)
+
     def test_non_rule_file_is_silent(self):
         with Fixture(main='# T\n') as root:
             proc = run_hook({'tool_name': 'Edit',

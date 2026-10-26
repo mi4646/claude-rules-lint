@@ -14,7 +14,6 @@ ignore it.
 from __future__ import annotations
 
 import json
-import os
 import pathlib
 import subprocess
 import sys
@@ -22,21 +21,28 @@ import sys
 HERE = pathlib.Path(__file__).resolve().parent
 CHECKER = HERE.parent / 'scripts' / 'check-rules.py'
 
+# Half-installed plugin: stay silent rather than crash on every edit. This must
+# stay ahead of the module load below, which would otherwise raise ImportError.
+if not CHECKER.is_file():
+    sys.exit(0)
+
+sys.path.insert(0, str(CHECKER.parent))
+from importlib.util import module_from_spec, spec_from_file_location
+
+_spec = spec_from_file_location('check_rules', CHECKER)
+check_rules = module_from_spec(_spec)
+_spec.loader.exec_module(check_rules)
+
 
 def rule_root(path: pathlib.Path) -> pathlib.Path | None:
     """Return the project root this path belongs to, if it is part of a rule set.
 
-    A path is in scope when it IS <root>/CLAUDE.md or sits under <root>/.claude/rules/.
-    Walks upward so nested projects and subdirectory CLAUDE.md files resolve correctly.
+    Delegates to check-rules.py so the hook and the CLI cannot disagree about
+    what a root is. They once did: the hook stripped `.claude` unconditionally,
+    so editing a user-level rule sent the checker to the home directory, which
+    has no CLAUDE.md — a "no CLAUDE.md to index it" failure for a healthy set.
     """
-    for parent in path.parents:
-        if parent.name == 'rules' and parent.parent.name == '.claude':
-            return parent.parent.parent
-        if (parent / '.claude' / 'rules').is_dir() or (parent / 'CLAUDE.md').is_file():
-            # Only count it when the edited file is that root's CLAUDE.md or a rules file.
-            if path == parent / 'CLAUDE.md' or parent / '.claude' / 'rules' in path.parents:
-                return parent
-    return None
+    return check_rules.find_root(path)
 
 
 def main() -> int:
@@ -56,9 +62,6 @@ def main() -> int:
     root = rule_root(path)
     if root is None:
         return 0
-
-    if not CHECKER.is_file():
-        return 0  # plugin half-installed; do not nag on every edit
 
     try:
         proc = subprocess.run(

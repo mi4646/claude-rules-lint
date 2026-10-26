@@ -88,13 +88,52 @@ def project_files(root: pathlib.Path) -> list[str]:
     return files
 
 
+def rules_dir_for(root: pathlib.Path) -> pathlib.Path:
+    """Locate the rules directory for a rule-set root.
+
+    Two layouts exist and both are real:
+      project  <root>/CLAUDE.md         + <root>/.claude/rules/*.md
+      global   <root>/CLAUDE.md         + <root>/rules/*.md          (root == ~/.claude)
+
+    `--all` appends `~/.claude`, so the second layout is not exotic: it is the
+    one every user-level rule set has. Assuming only the first made the checker
+    look in `~/.claude/.claude/rules`, miss the directory, and call every
+    `rules/x.md` reference dangling. Six false FAILs against a healthy set.
+    """
+    local = root / 'rules'
+    if local.is_dir():
+        return local
+    return root / '.claude' / 'rules'
+
+
+def find_root(path: pathlib.Path) -> pathlib.Path | None:
+    """Return the rule-set root owning `path`, or None when it is not part of one.
+
+    Shared by the CLI and the PostToolUse hook so the two cannot disagree about
+    what a root is. The hook used to strip `.claude` unconditionally, which sent
+    the global layer's root to the home directory and produced a "no CLAUDE.md
+    to index it" failure for a rule set whose CLAUDE.md was right there.
+    """
+    for parent in path.resolve().parents:
+        if parent.name == 'rules':
+            base = parent.parent
+            if (base / 'CLAUDE.md').is_file():
+                return base                      # global layer: ~/.claude
+            if (base.parent / 'CLAUDE.md').is_file():
+                return base.parent               # project: <root>/.claude/rules
+            continue
+        if (parent / 'CLAUDE.md').is_file():
+            return parent                        # the main file itself
+    return None
+
+
 def check(root: pathlib.Path) -> tuple[list[str], list[str], list[str]]:
     """Return (fails, warns, infos) for one rule-set root."""
     fails: list[str] = []
     warns: list[str] = []
     infos: list[str] = []
     main = root / 'CLAUDE.md'
-    rules_dir = root / '.claude' / 'rules'
+    rules_dir = rules_dir_for(root)
 
     if not main.is_file():
         if rules_dir.is_dir():

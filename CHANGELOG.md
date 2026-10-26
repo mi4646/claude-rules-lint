@@ -12,6 +12,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Chinese README (`README.zh-CN.md`), with a language switcher at the top of both
   READMEs. Structure mirrors the English file section for section.
 
+## [1.0.2] - 2026-10-26
+
+### Fixed
+
+- **The global layer was linted against the wrong rules directory.** `--all`
+  appends `~/.claude` as a root, but `check()` hardcoded
+  `root / '.claude' / 'rules'`, so it looked in `~/.claude/.claude/rules`, found
+  nothing, and reported every `rules/x.md` reference as dangling — six false
+  FAILs against a healthy user-level rule set. The same assumption in the hook
+  (`rule_root()` stripping `.claude` unconditionally) sent the root to the home
+  directory and produced a "`.claude/rules/` exists but there is no `CLAUDE.md`
+  to index it" failure for a rule set whose `CLAUDE.md` was right there.
+- Both now share one root resolver (`find_root()`), so the CLI and the hook
+  cannot disagree about what a root is. Recognised layouts:
+  `CLAUDE.md` + `rules/` (global layer, root == `~/.claude`) and
+  `CLAUDE.md` + `.claude/rules/` (project).
+
+### Added
+
+- Six regression tests: nested/global layout passes, and it still catches a
+  dangling reference, an unreferenced rule and a real hook finding. The suite
+  stayed green through v1.0.1 because every fixture built the project layout
+  only — the one layout the bug did not affect.
+
 ## [1.0.1] - 2026-10-25
 
 ### Added

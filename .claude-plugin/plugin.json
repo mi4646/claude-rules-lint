@@ -1,7 +1,7 @@
 {
   "name": "claude-rules-lint",
   "description": "Structural lint for layered CLAUDE.md rule sets: catches rule files nothing indexes, references to rules that no longer exist, and a main file that outgrew its adherence budget.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": {
     "name": "mi4646"
   },
